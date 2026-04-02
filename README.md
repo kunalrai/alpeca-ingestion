@@ -189,12 +189,39 @@ Polygon fundamentals enrichment writes into `master.stock_fundamentals_latest`, 
 
 ---
 
-## Scheduler Windows (ET)
+## Scheduler
+
+The scheduler runs **inside the same Node.js process as the Express server** — no separate process or database-side cron.
+
+```
+npm start / npm run dev
+       │
+       └─► server.js starts
+                │
+                ├─► Express HTTP server (port 3000)
+                ├─► WebSocket server (/ws/logs)
+                └─► scheduler.start() ← called on boot
+                          │
+                          └─► node-cron registers timers (event loop)
+                                  │
+                                  ├─► every N mins → ohlc job
+                                  ├─► every N mins → ohlc_premarket job
+                                  ├─► every N mins → safe_bet job
+                                  ├─► every N mins → fundamentals job
+                                  └─► daily 02:00 ET → polygon_fundamentals job
+```
+
+- Each cron tick calls `inWindow()` — if the current ET time is outside the job's window, the job is silently skipped
+- A `running` flag per job prevents overlapping executions
+- POST `/api/start` / `/api/stop` start or stop all cron tasks without restarting the server
+- POST `/api/settings` saves new intervals and calls `scheduler.restart()` to apply them immediately
+
+### Scheduler Windows (ET)
 
 | Job | Window |
 |-----|--------|
 | Pre-market OHLC | 04:00 – 09:30 |
 | Regular OHLC | 09:30 – 16:00 |
-| Fundamentals | 09:30 – 16:00 |
+| Fundamentals | 04:00 – 09:30 |
 | Safe Bet | 09:30 – 16:00 |
-| Polygon Fundamentals | Configurable (runs within budget per execution) |
+| Polygon Fundamentals | Daily at 02:00 ET (off-market enrichment) |
