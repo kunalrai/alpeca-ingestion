@@ -193,22 +193,37 @@ Polygon fundamentals enrichment writes into `master.stock_fundamentals_latest`, 
 
 The scheduler runs **inside the same Node.js process as the Express server** — no separate process or database-side cron.
 
-```
-npm start / npm run dev
-       │
-       └─► server.js starts
-                │
-                ├─► Express HTTP server (port 3000)
-                ├─► WebSocket server (/ws/logs)
-                └─► scheduler.start() ← called on boot
-                          │
-                          └─► node-cron registers timers (event loop)
-                                  │
-                                  ├─► every N mins → ohlc job
-                                  ├─► every N mins → ohlc_premarket job
-                                  ├─► every N mins → safe_bet job
-                                  ├─► every N mins → fundamentals job
-                                  └─► daily 02:00 ET → polygon_fundamentals job
+```mermaid
+flowchart TD
+    A([npm start]) --> B[server.js]
+    B --> C[Express HTTP :3000]
+    B --> D[WebSocket /ws/logs]
+    B --> E[scheduler.start]
+
+    E --> F[node-cron — event loop]
+
+    F --> J1["ohlc\nevery N mins"]
+    F --> J2["ohlc_premarket\nevery N mins"]
+    F --> J3["safe_bet\nevery N mins"]
+    F --> J4["fundamentals\nevery N mins"]
+    F --> J5["polygon_fundamentals\ndaily 02:00 ET"]
+
+    J1 --> W1{inWindow?\n09:30–16:00 ET}
+    J2 --> W2{inWindow?\n04:00–09:30 ET}
+    J3 --> W3{inWindow?\n09:30–16:00 ET}
+    J4 --> W4{inWindow?\n04:00–09:30 ET}
+    J5 --> W5{inWindow?\n00:00–23:59 ET}
+
+    W1 -->|yes| R1[(master.ohlc)]
+    W2 -->|yes| R2[(master.ohlc_premarket)]
+    W3 -->|yes| R3[(master.safe_bet)]
+    W4 -->|yes| R4[(master.stock_fundamentals_latest)]
+    W5 -->|yes| R4
+
+    W1 -->|no| SK[skip]
+    W2 -->|no| SK
+    W3 -->|no| SK
+    W4 -->|no| SK
 ```
 
 - Each cron tick calls `inWindow()` — if the current ET time is outside the job's window, the job is silently skipped
