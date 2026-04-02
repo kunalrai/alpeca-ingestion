@@ -1,10 +1,8 @@
-Loaded Prisma config from prisma.config.ts.
-
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "master";
 
 -- CreateTable
-CREATE TABLE "ingest_watermark" (
+CREATE TABLE "master"."ingest_watermark" (
     "job" TEXT NOT NULL,
     "last_timestamp" TIMESTAMPTZ(6) NOT NULL,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -13,7 +11,7 @@ CREATE TABLE "ingest_watermark" (
 );
 
 -- CreateTable
-CREATE TABLE "ohlc" (
+CREATE TABLE "master"."ohlc" (
     "symbol" TEXT NOT NULL,
     "timestamp" TIMESTAMPTZ(6) NOT NULL,
     "open" DOUBLE PRECISION,
@@ -24,7 +22,7 @@ CREATE TABLE "ohlc" (
 );
 
 -- CreateTable
-CREATE TABLE "ohlc_premarket" (
+CREATE TABLE "master"."ohlc_premarket" (
     "symbol" TEXT NOT NULL,
     "timestamp" TIMESTAMPTZ(6) NOT NULL,
     "open" DOUBLE PRECISION,
@@ -35,7 +33,7 @@ CREATE TABLE "ohlc_premarket" (
 );
 
 -- CreateTable
-CREATE TABLE "safe_bet" (
+CREATE TABLE "master"."safe_bet" (
     "symbol" TEXT NOT NULL,
     "name" TEXT,
     "previous_close" DECIMAL,
@@ -50,8 +48,8 @@ CREATE TABLE "safe_bet" (
 );
 
 -- CreateTable
-CREATE TABLE "stock_fundamentals_latest" (
-    "id" BIGINT,
+CREATE TABLE "master"."stock_fundamentals_latest" (
+    "id" BIGSERIAL PRIMARY KEY,
     "symbol" TEXT,
     "timestamp" TIMESTAMPTZ(6),
     "current_price" DOUBLE PRECISION,
@@ -175,7 +173,7 @@ CREATE TABLE "stock_fundamentals_latest" (
 );
 
 -- CreateTable
-CREATE TABLE "us_stocks" (
+CREATE TABLE "master"."us_stocks" (
     "symbol" TEXT NOT NULL,
     "description" TEXT,
     "currency" TEXT,
@@ -190,11 +188,11 @@ CREATE TABLE "us_stocks" (
 );
 
 -- CreateIndex
-CREATE INDEX "ohlc_timestamp_idx" ON "ohlc"("timestamp" DESC);
+CREATE INDEX "ohlc_timestamp_idx" ON "master"."ohlc"("timestamp" DESC);
 
 -- CreateIndex
-CREATE INDEX "ohlc_premarket_timestamp_idx" ON "ohlc_premarket"("timestamp" DESC);
+CREATE INDEX "ohlc_premarket_timestamp_idx" ON "master"."ohlc_premarket"("timestamp" DESC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "latest_stock_fundamentals_symbol_ts_idx" ON "stock_fundamentals_latest"("symbol");
+CREATE UNIQUE INDEX "latest_stock_fundamentals_symbol_ts_idx" ON "master"."stock_fundamentals_latest"("symbol");
 

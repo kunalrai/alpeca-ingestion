@@ -2,17 +2,21 @@ const cron = require('node-cron');
 const { schedule: cfgDefault } = require('./config');
 const settingsStore = require('./settingsStore');
 const log = require('./logQueue');
+const db = require('./db');
 
 const ingestOhlc = require('./jobs/ingestOhlc');
 const ingestOhlcPremarket = require('./jobs/ingestOhlcPremarket');
 const ingestSafeBet = require('./jobs/ingestSafeBet');
 const ingestFundamentals = require('./jobs/ingestFundamentals');
+const ingestUsStocks = require('./jobs/ingestUsStocks');
+const ingestPolygonFundamentals = require('./jobs/ingestPolygonFundamentals');
 
 const jobState = {
-  ohlc:           { running: false, lastRun: null, lastStatus: 'idle' },
-  ohlc_premarket: { running: false, lastRun: null, lastStatus: 'idle' },
-  safe_bet:       { running: false, lastRun: null, lastStatus: 'idle' },
-  fundamentals:   { running: false, lastRun: null, lastStatus: 'idle' },
+  ohlc:                  { running: false, lastRun: null, lastStatus: 'idle' },
+  ohlc_premarket:        { running: false, lastRun: null, lastStatus: 'idle' },
+  safe_bet:              { running: false, lastRun: null, lastStatus: 'idle' },
+  fundamentals:          { running: false, lastRun: null, lastStatus: 'idle' },
+  polygon_fundamentals:  { running: false, lastRun: null, lastStatus: 'idle' },
 };
 
 let tasks = [];
@@ -54,9 +58,18 @@ async function runJob(name, fn, windowStart, windowEnd) {
   }
 }
 
-function start() {
+async function ensureSymbols() {
+  const symbols = await db.getActiveSymbols();
+  if (symbols.length === 0) {
+    log.push('info', 'scheduler', 'us_stocks is empty — running bootstrap sync before starting jobs');
+    await ingestUsStocks.run();
+  }
+}
+
+async function start() {
   if (active) return;
   active = true;
+  await ensureSymbols();
   const s = getSettings();
   log.push('info', 'scheduler', `Scheduler started — OHLC every ${s.ohlcPollSeconds}s, Fundamentals every ${s.fundamentalsIntervalSeconds}s`);
 
@@ -83,6 +96,12 @@ function start() {
     cron.schedule(`30 */${fundsMins} * * * *`, () =>
       runJob('fundamentals', ingestFundamentals.run, s.preMarketStart, s.marketOpen)
     )
+  );
+  // Polygon fundamentals: daily at 02:00 ET, off-market enrichment
+  tasks.push(
+    cron.schedule('0 0 2 * * *', () =>
+      runJob('polygon_fundamentals', ingestPolygonFundamentals.run, '00:00', '23:59')
+    , { timezone: cfgDefault.timezone })
   );
 }
 

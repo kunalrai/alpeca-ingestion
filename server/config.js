@@ -24,6 +24,10 @@ module.exports = {
     max: 10,
     idleTimeoutMillis: 30000,
   },
+  polygon: {
+    apiKey: process.env.POLYGON_API_KEY,
+    baseUrl: 'https://api.polygon.io',
+  },
   batchSize: 1000,
   port: parseInt(process.env.PORT) || 3000,
 };

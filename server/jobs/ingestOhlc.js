@@ -6,6 +6,10 @@ async function run() {
   log.push('info', 'ohlc', 'OHLC ingest started');
   try {
     const symbols = await db.getActiveSymbols();
+    if (!symbols.length) {
+      log.push('warn', 'ohlc', 'No active symbols in us_stocks — skipping');
+      return;
+    }
     log.push('info', 'ohlc', `Fetching snapshots for ${symbols.length} symbols`);
 
     const snapshots = await getSnapshots(symbols, (batchNum, totalBatches, fetched, total) => {
@@ -22,6 +26,7 @@ async function run() {
     }
 
     const written = await db.insertOhlc(rows);
+    await db.setWatermark('master.ohlc', new Date());
     log.push('info', 'ohlc', `OHLC done — ${written} rows written`);
   } catch (err) {
     log.push('error', 'ohlc', `OHLC error: ${err.message}`);

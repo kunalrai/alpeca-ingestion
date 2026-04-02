@@ -2,7 +2,7 @@ const db = require('../db');
 const { getHistoricalBars } = require('../alpacaClient');
 const log = require('../logQueue');
 
-const JOB = 'ohlc_history';
+const JOB = 'master.ohlc';
 
 async function run({ from, to } = {}) {
   log.push('info', JOB, 'OHLC history ingest started');

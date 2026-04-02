@@ -12,11 +12,19 @@ const JOB_LABELS = {
   us_stocks: 'US Stocks',
 };
 
+const JOB_TABLE = {
+  ohlc: 'master.ohlc',
+  ohlc_premarket: 'master.ohlc_premarket',
+  safe_bet: 'master.safe_bet',
+  fundamentals: 'master.stock_fundamentals_latest',
+  us_stocks: 'master.us_stocks',
+};
+
 async function triggerJob(name) {
   await fetch(`${API_BASE}/api/jobs/run/${name}`, { method: 'POST' });
 }
 
-export default function PipelineStatus({ status, onStart, onStop }) {
+export default function PipelineStatus({ status, watermarks = {}, onStart, onStop }) {
   const { active = false, jobs = {} } = status || {};
 
   return (
@@ -78,13 +86,13 @@ export default function PipelineStatus({ status, onStart, onStop }) {
           })}
         </div>
 
-        {/* Last run times */}
+        {/* Last write times from watermark */}
         <div className="space-y-1 pt-1">
           {Object.entries(JOB_LABELS).map(([key, label]) => {
-            const job = jobs[key] || {};
-            return job.lastRun ? (
+            const wm = watermarks[JOB_TABLE[key]];
+            return wm ? (
               <p key={key} className="text-[10px] text-muted-foreground">
-                {label}: {new Date(job.lastRun).toLocaleTimeString()}
+                {label}: {new Date(wm.last_timestamp).toLocaleTimeString()}
               </p>
             ) : null;
           })}

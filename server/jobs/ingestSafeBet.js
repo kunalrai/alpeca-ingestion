@@ -40,6 +40,7 @@ async function run() {
     }
 
     const written = await db.upsertSafeBet(rows);
+    await db.setWatermark('master.safe_bet', new Date());
     log.push('info', 'safe_bet', `Safe bet done — ${written} rows upserted`);
   } catch (err) {
     log.push('error', 'safe_bet', `Safe bet error: ${err.message}`);

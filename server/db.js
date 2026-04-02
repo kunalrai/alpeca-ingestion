@@ -141,6 +141,64 @@ async function upsertFundamentals(rows) {
   return rows.length;
 }
 
+// ── Polygon Fundamentals ──────────────────────────────────────────────────────
+
+const POLYGON_COLUMNS = [
+  'long_name', 'long_business_summary', 'industry', 'full_time_employees', 'website',
+  'market_cap', 'shares_outstanding', 'float_shares',
+  'enterprise_value', 'book_value', 'price_to_book', 'price_to_sales', 'trailing_pe',
+  'totalrevenue', 'netincometocommon', 'ebitda', 'free_cashflow', 'operating_cashflow',
+  'total_cash', 'total_cash_per_share', 'total_debt',
+  'profit_margins', 'gross_margins', 'ebitda_margins', 'operating_margins',
+  'return_on_assets', 'return_on_equity',
+  'current_ratio', 'quick_ratio', 'debt_to_equity', 'revenue_per_share',
+  'eps', 'trailing_eps', 'eps_current_year',
+  'dividend_rate', 'trailing_annual_dividend_rate', 'last_dividend_value',
+  'ex_dividend_date', 'dividend_date', 'dividend_yield', 'payout_ratio',
+];
+
+async function upsertPolygonFundamentals(rows) {
+  if (!rows.length) return 0;
+  const client = await pool.connect();
+  try {
+    for (const r of rows) {
+      const cols = ['symbol', ...POLYGON_COLUMNS];
+      const vals = cols.map((c) => r[c] ?? null);
+      const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+      const updates = POLYGON_COLUMNS.map((c, i) => `${c} = EXCLUDED.${c}`).join(', ');
+      await client.query(
+        `INSERT INTO master.stock_fundamentals_latest (${cols.join(', ')})
+         VALUES (${placeholders})
+         ON CONFLICT (symbol) DO UPDATE SET ${updates}`,
+        vals
+      );
+    }
+  } finally {
+    client.release();
+  }
+  return rows.length;
+}
+
+async function updateSymbolFundamentalsTimestamp(symbol) {
+  await query(
+    'UPDATE master.us_stocks SET last_fundamentals_update = NOW() WHERE symbol = $1',
+    [symbol]
+  );
+}
+
+async function getStalestSymbolsForFundamentals(limit) {
+  const res = await query(
+    `SELECT u.symbol, f.current_price
+     FROM master.us_stocks u
+     LEFT JOIN master.stock_fundamentals_latest f ON f.symbol = u.symbol
+     WHERE u.is_active = true
+     ORDER BY u.last_fundamentals_update ASC NULLS FIRST
+     LIMIT $1`,
+    [limit]
+  );
+  return res.rows;
+}
+
 // ── Watermark ─────────────────────────────────────────────────────────────────
 
 async function getWatermark(job) {
@@ -149,6 +207,13 @@ async function getWatermark(job) {
     [job]
   );
   return res.rows[0]?.last_timestamp ?? null;
+}
+
+async function getAllWatermarks() {
+  const res = await query(
+    'SELECT job, last_timestamp, updated_at FROM master.ingest_watermark ORDER BY job'
+  );
+  return res.rows;
 }
 
 async function setWatermark(job, timestamp) {
@@ -194,7 +259,11 @@ module.exports = {
   insertOhlcPremarket,
   upsertSafeBet,
   upsertFundamentals,
+  upsertPolygonFundamentals,
+  updateSymbolFundamentalsTimestamp,
+  getStalestSymbolsForFundamentals,
   getTableCounts,
   getWatermark,
   setWatermark,
+  getAllWatermarks,
 };

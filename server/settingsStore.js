@@ -11,6 +11,8 @@ const DEFAULTS = {
   marketOpen: '09:30',
   marketClose: '16:00',
   batchSize: 1000,
+  polygonRateLimitMs: 12000,
+  polygonBudgetPerRun: 200,
 };
 
 function load() {

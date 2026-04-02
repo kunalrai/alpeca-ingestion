@@ -5,6 +5,7 @@ import PipelineStatus from './components/PipelineStatus';
 import MetricBars from './components/MetricBars';
 import LogStream from './components/LogStream';
 import TableViewer from './components/TableViewer';
+import StockExplorer from './components/StockExplorer';
 import SettingsPage from './components/Settings';
 import { useWebSocket } from './hooks/useWebSocket';
 import { API_BASE, WS_URL } from './api';
@@ -13,6 +14,7 @@ export default function App() {
   const [page, setPage] = useState('dashboard');
   const [status, setStatus] = useState(null);
   const [metrics, setMetrics] = useState(null);
+  const [watermarks, setWatermarks] = useState({});
   const { logs, connected } = useWebSocket(WS_URL);
 
   async function fetchStatus() {
@@ -29,6 +31,14 @@ export default function App() {
     } catch {}
   }
 
+  async function fetchWatermarks() {
+    try {
+      const res = await fetch(`${API_BASE}/api/dashboard`);
+      const data = await res.json();
+      if (data.watermarks) setWatermarks(data.watermarks);
+    } catch {}
+  }
+
   async function handleStart() {
     await fetch(`${API_BASE}/api/start`, { method: 'POST' });
     fetchStatus();
@@ -42,9 +52,11 @@ export default function App() {
   useEffect(() => {
     fetchStatus();
     fetchMetrics();
+    fetchWatermarks();
     const s = setInterval(fetchStatus, 3000);
     const m = setInterval(fetchMetrics, 5000);
-    return () => { clearInterval(s); clearInterval(m); };
+    const w = setInterval(fetchWatermarks, 30000);
+    return () => { clearInterval(s); clearInterval(m); clearInterval(w); };
   }, []);
 
   return (
@@ -63,7 +75,7 @@ export default function App() {
 
         {page === 'monitor' && (
           <div className="grid grid-cols-[220px_1fr] gap-4 h-[calc(100vh-40px)]">
-            <PipelineStatus status={status} onStart={handleStart} onStop={handleStop} />
+            <PipelineStatus status={status} watermarks={watermarks} onStart={handleStart} onStop={handleStop} />
             <div className="flex flex-col gap-4 min-h-0">
               <MetricBars metrics={metrics} logs={logs} status={status} />
               <div className="flex-1 min-h-0">
@@ -72,6 +84,8 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {page === 'stocks' && <StockExplorer />}
 
         {page === 'tables' && <TableViewer />}
 

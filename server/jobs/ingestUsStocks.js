@@ -3,9 +3,16 @@ const db = require('../db');
 const config = require('../config');
 const log = require('../logQueue');
 
-async function run() {
+async function run({ force = false } = {}) {
   log.push('info', 'us_stocks', 'US stocks ingest started');
   try {
+    if (!force) {
+      const watermark = await db.getWatermark('master.us_stocks');
+      if (watermark && Date.now() - new Date(watermark).getTime() < 24 * 60 * 60 * 1000) {
+        log.push('info', 'us_stocks', `US stocks skipped — last synced ${new Date(watermark).toISOString()}`);
+        return;
+      }
+    }
     const client = axios.create({
       baseURL: 'https://paper-api.alpaca.markets/v2',
       headers: {
@@ -67,7 +74,7 @@ async function run() {
       log.push('info', 'us_stocks', `Upserted ${total}/${assets.length} symbols`);
     }
 
-    await db.setWatermark('us_stocks', new Date());
+    await db.setWatermark('master.us_stocks', new Date());
     log.push('info', 'us_stocks', `US stocks done — ${total} rows upserted`);
   } catch (err) {
     log.push('error', 'us_stocks', `US stocks error: ${err.message}`);

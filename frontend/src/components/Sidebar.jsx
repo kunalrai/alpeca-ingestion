@@ -1,15 +1,18 @@
-import { PieChart, LayoutDashboard, Table2, Settings, Activity } from 'lucide-react';
+import { PieChart, LayoutDashboard, Table2, Settings, Activity, BarChart2, Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
+import { useTheme } from '../hooks/useTheme.jsx';
 
 const NAV = [
   { key: 'dashboard', label: 'Dashboard',  icon: PieChart },
   { key: 'monitor',   label: 'Monitor',    icon: LayoutDashboard },
+  { key: 'stocks',    label: 'Stocks',     icon: BarChart2 },
   { key: 'tables',    label: 'Tables',     icon: Table2 },
   { key: 'settings',  label: 'Settings',   icon: Settings },
 ];
 
 export default function Sidebar({ active, onChange, pipelineActive, connected }) {
+  const { theme, toggle } = useTheme();
   return (
     <aside className="flex flex-col w-48 bg-card border-r border-border h-screen fixed left-0 top-0 z-20">
       {/* Logo */}
@@ -52,7 +55,14 @@ export default function Sidebar({ active, onChange, pipelineActive, connected })
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-border">
+      <div className="px-4 py-3 border-t border-border space-y-2">
+        <button
+          onClick={toggle}
+          className="flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-full"
+        >
+          {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        </button>
         <p className="text-[10px] text-muted-foreground">stocks DB · 38.49.213.39</p>
         <p className="text-[10px] text-muted-foreground">PostgreSQL 18.1</p>
       </div>

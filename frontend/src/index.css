@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  :root,
+  html.dark {
     --background: 222 47% 6%;
     --foreground: 213 31% 91%;
     --card: 222 47% 9%;
@@ -21,6 +22,27 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
     --ring: 142 71% 45%;
+    --radius: 0.5rem;
+  }
+
+  html.light {
+    --background: 0 0% 97%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --border: 214 32% 88%;
+    --input: 214 32% 88%;
+    --primary: 142 71% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 94%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 94%;
+    --muted-foreground: 215 16% 45%;
+    --accent: 210 40% 92%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --ring: 142 71% 35%;
     --radius: 0.5rem;
   }
 }

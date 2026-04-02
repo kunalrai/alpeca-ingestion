@@ -89,17 +89,27 @@ function snapshotToFundamentalsRow(symbol, snap) {
   const quote = snap.latestQuote || {};
   const bar = snap.dailyBar || {};
   const prevBar = snap.prevDailyBar || {};
+  const trade = snap.latestTrade || {};
+  const price = num(trade.p ?? bar.c);
   return {
     symbol,
     timestamp: new Date(),
-    current_price: num(snap.latestTrade?.p ?? bar.c),
+    current_price: price,
     previous_close: num(prevBar.c),
     open: num(bar.o),
+    day_high: num(bar.h),
+    day_low: num(bar.l),
+    regular_market_price: price,
+    regular_market_open: num(bar.o),
+    regular_market_day_high: num(bar.h),
+    regular_market_day_low: num(bar.l),
     volume: num(bar.v),
     regular_market_volume: num(bar.v),
     bid: num(quote.bp),
     ask: num(quote.ap),
-    market_state: 'PRE',
+    bid_size: num(quote.bs),
+    ask_size: num(quote.as),
+    market_state: snap.dailyBar ? 'REGULAR' : 'PRE',
   };
 }
 

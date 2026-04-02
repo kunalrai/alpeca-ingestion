@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="#0f1117"/>
+
+  <!-- Candlestick 1 (green) -->
+  <line x1="7" y1="6" x2="7" y2="10" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+  <rect x="4.5" y="10" width="5" height="8" rx="1" fill="#34d399"/>
+  <line x1="7" y1="18" x2="7" y2="22" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Candlestick 2 (red) -->
+  <line x1="16" y1="8" x2="16" y2="12" stroke="#f87171" stroke-width="1.5" stroke-linecap="round"/>
+  <rect x="13.5" y="12" width="5" height="10" rx="1" fill="#f87171"/>
+  <line x1="16" y1="22" x2="16" y2="26" stroke="#f87171" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Candlestick 3 (green) -->
+  <line x1="25" y1="5" x2="25" y2="9" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+  <rect x="22.5" y="9" width="5" height="12" rx="1" fill="#34d399"/>
+  <line x1="25" y1="21" x2="25" y2="26" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

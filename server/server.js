@@ -43,12 +43,13 @@ app.post('/api/settings', (req, res) => {
 
 app.post('/api/jobs/run/:name', async (req, res) => {
   const jobs = {
-    fundamentals:  require('./jobs/ingestFundamentals'),
-    ohlc:          require('./jobs/ingestOhlc'),
-    ohlc_premarket: require('./jobs/ingestOhlcPremarket'),
-    safe_bet:      require('./jobs/ingestSafeBet'),
-    ohlc_history:  require('./jobs/ingestOhlcHistory'),
-    us_stocks:     require('./jobs/ingestUsStocks'),
+    fundamentals:         require('./jobs/ingestFundamentals'),
+    polygon_fundamentals: require('./jobs/ingestPolygonFundamentals'),
+    ohlc:                 require('./jobs/ingestOhlc'),
+    ohlc_premarket:       require('./jobs/ingestOhlcPremarket'),
+    safe_bet:             require('./jobs/ingestSafeBet'),
+    ohlc_history:         require('./jobs/ingestOhlcHistory'),
+    us_stocks:            require('./jobs/ingestUsStocks'),
   };
   const job = jobs[req.params.name];
   if (!job) return res.status(400).json({ error: 'Unknown job' });
@@ -57,8 +58,8 @@ app.post('/api/jobs/run/:name', async (req, res) => {
   res.json({ ok: true, message: `${req.params.name} triggered` });
 });
 
-app.post('/api/start', (req, res) => {
-  scheduler.start();
+app.post('/api/start', async (req, res) => {
+  await scheduler.start();
   res.json({ ok: true, message: 'Scheduler started' });
 });
 
@@ -74,7 +75,7 @@ app.get('/api/logs', (req, res) => {
 // ── Dashboard stats ───────────────────────────────────────────────────────────
 app.get('/api/dashboard', async (req, res) => {
   try {
-    const [counts, ohlcRecent, topSymbols, lastFundamentals, ohlcByHour, marketLeaders, watermark] = await Promise.all([
+    const [counts, ohlcRecent, topSymbols, lastFundamentals, ohlcByHour, marketLeaders, watermarks] = await Promise.all([
       db.getTableCounts(),
 
       // Last 10 OHLC inserts
@@ -137,8 +138,10 @@ app.get('/api/dashboard', async (req, res) => {
         LIMIT 25
       `),
 
-      db.getWatermark('ohlc_history'),
+      db.getAllWatermarks(),
     ]);
+
+    const watermarkMap = Object.fromEntries(watermarks.map((w) => [w.job, w]));
 
     res.json({
       counts,
@@ -148,8 +151,146 @@ app.get('/api/dashboard', async (req, res) => {
       ohlcByHour: ohlcByHour.rows,
       marketLeaders: marketLeaders.rows,
       schedulerStatus: scheduler.getStatus(),
-      ohlcHistoryWatermark: watermark,
+      watermarks: watermarkMap,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Stock Explorer ────────────────────────────────────────────────────────────
+
+app.get('/api/stocks', async (req, res) => {
+  const page   = Math.max(1, parseInt(req.query.page) || 1);
+  const limit  = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+  const offset = (page - 1) * limit;
+  const search = req.query.search?.trim() || '';
+
+  try {
+    const searchParam = search ? `%${search}%` : null;
+    const dataWhere = search
+      ? `WHERE u.is_active = true AND (u.symbol ILIKE $3 OR u.description ILIKE $3)`
+      : `WHERE u.is_active = true`;
+    const countWhere = search
+      ? `WHERE is_active = true AND (symbol ILIKE $1 OR description ILIKE $1)`
+      : `WHERE is_active = true`;
+    const dataParams = search ? [limit, offset, searchParam] : [limit, offset];
+
+    const [dataRes, countRes] = await Promise.all([
+      db.query(
+        `SELECT u.symbol, u.description, u.mic, u.type,
+                f.current_price, f.previous_close, f.market_state, f.volume,
+                f.bid, f.ask
+         FROM master.us_stocks u
+         LEFT JOIN master.stock_fundamentals_latest f ON f.symbol = u.symbol
+         ${dataWhere}
+         ORDER BY u.symbol
+         LIMIT $1 OFFSET $2`,
+        dataParams
+      ),
+      db.query(
+        `SELECT COUNT(*) FROM master.us_stocks ${countWhere}`,
+        search ? [searchParam] : []
+      ),
+    ]);
+
+    res.json({
+      rows: dataRes.rows,
+      total: parseInt(countRes.rows[0].count),
+      page,
+      limit,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/stocks/:symbol', async (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+  try {
+    const [info, fundamentals, latestOhlc, latestPremarket] = await Promise.all([
+      db.query(`SELECT * FROM master.us_stocks WHERE symbol = $1`, [symbol]),
+      db.query(`SELECT * FROM master.stock_fundamentals_latest WHERE symbol = $1`, [symbol]),
+      db.query(`SELECT * FROM master.ohlc WHERE symbol = $1 ORDER BY timestamp DESC LIMIT 1`, [symbol]),
+      db.query(`SELECT * FROM master.ohlc_premarket WHERE symbol = $1 ORDER BY timestamp DESC LIMIT 1`, [symbol]),
+    ]);
+
+    if (!info.rows.length) return res.status(404).json({ error: 'Symbol not found' });
+
+    res.json({
+      info: info.rows[0],
+      fundamentals: fundamentals.rows[0] ?? null,
+      latestOhlc: latestOhlc.rows[0] ?? null,
+      latestPremarket: latestPremarket.rows[0] ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/stocks/:symbol/fetch-fundamentals', async (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+  const { fetchTickerDetails, fetchFinancials, fetchDividends, polygonToFundamentalsRow } = require('./polygonClient');
+  try {
+    const existing = await db.query(
+      'SELECT current_price FROM master.stock_fundamentals_latest WHERE symbol = $1', [symbol]
+    );
+    const currentPrice = existing.rows[0]?.current_price ?? null;
+
+    const [details, financials, dividends] = await Promise.all([
+      fetchTickerDetails(symbol),
+      fetchFinancials(symbol),
+      fetchDividends(symbol),
+    ]);
+
+    if (!details) return res.status(404).json({ error: 'Symbol not found in Polygon' });
+
+    const row = polygonToFundamentalsRow(symbol, details, financials, dividends, currentPrice);
+    await db.upsertPolygonFundamentals([row]);
+    await db.updateSymbolFundamentalsTimestamp(symbol);
+
+    const updated = await db.query(
+      'SELECT * FROM master.stock_fundamentals_latest WHERE symbol = $1', [symbol]
+    );
+    res.json({ ok: true, fundamentals: updated.rows[0] });
+  } catch (err) {
+    if (err.response?.status === 429) {
+      return res.status(429).json({ error: 'Rate limited by Polygon — please wait a minute and try again' });
+    }
+    if (err.response?.status === 403) {
+      return res.status(403).json({ error: 'Polygon API key invalid or missing' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/stocks/:symbol/ohlc', async (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+  const limit  = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
+  try {
+    const result = await db.query(
+      `SELECT timestamp, open, high, low, close, volume
+       FROM master.ohlc WHERE symbol = $1
+       ORDER BY timestamp DESC LIMIT $2`,
+      [symbol, limit]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/stocks/:symbol/premarket', async (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+  const limit  = Math.min(200, Math.max(1, parseInt(req.query.limit) || 20));
+  try {
+    const result = await db.query(
+      `SELECT timestamp, open, high, low, close, volume
+       FROM master.ohlc_premarket WHERE symbol = $1
+       ORDER BY timestamp DESC LIMIT $2`,
+      [symbol, limit]
+    );
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -228,8 +369,8 @@ wss.on('connection', (ws) => {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
-server.listen(config.port, () => {
+server.listen(config.port, async () => {
   console.log(`Server running on http://localhost:${config.port}`);
   logQueue.push('info', 'server', `Server started on port ${config.port}`);
-  scheduler.start();
+  await scheduler.start();
 });
