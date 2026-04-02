@@ -9,7 +9,7 @@ A stock market data ingestion pipeline with a real-time monitoring dashboard. Fe
 - **Backend** — Node.js, Express, WebSocket (`ws`), node-cron
 - **Database** — PostgreSQL / TimescaleDB, Prisma (migrations + type-safe client)
 - **Frontend** — React, Vite, Radix UI
-- **Data source** — Alpaca Markets REST API
+- **Data sources** — Alpaca Markets REST API, Polygon.io REST API
 
 ---
 
@@ -18,6 +18,7 @@ A stock market data ingestion pipeline with a real-time monitoring dashboard. Fe
 - Node.js 18+
 - PostgreSQL / TimescaleDB running and accessible
 - Alpaca API key + secret
+- Polygon.io API key (for fundamentals enrichment)
 
 ---
 
@@ -50,6 +51,8 @@ DB_PASSWORD=your_password
 PORT=3000
 
 DATABASE_URL="postgresql://postgres:your_password@localhost:5432/stocks?schema=master"
+
+POLYGON_API_KEY=your_polygon_key
 ```
 
 ---
@@ -126,23 +129,28 @@ postgresdb/
 │   ├── logQueue.js            # In-memory log queue + WebSocket broadcast
 │   ├── settingsStore.js       # Persists settings to settings.json
 │   └── jobs/
-│       ├── ingestOhlc.js            # Regular-hours OHLC → master.ohlc
-│       ├── ingestOhlcPremarket.js   # Pre-market OHLC → master.ohlc_premarket
-│       ├── ingestFundamentals.js    # Fundamentals → master.stock_fundamentals_latest
-│       ├── ingestSafeBet.js         # Safe-bet tracking → master.safe_bet
-│       ├── ingestUsStocks.js        # US equity list → master.us_stocks
-│       └── ingestOhlcHistory.js     # Historical OHLC backfill
+│       ├── ingestOhlc.js                  # Regular-hours OHLC → master.ohlc
+│       ├── ingestOhlcPremarket.js         # Pre-market OHLC → master.ohlc_premarket
+│       ├── ingestFundamentals.js          # Alpaca fundamentals → master.stock_fundamentals_latest
+│       ├── ingestPolygonFundamentals.js   # Polygon fundamentals enrichment (ticker details, financials, dividends)
+│       ├── ingestSafeBet.js               # Safe-bet tracking → master.safe_bet
+│       ├── ingestUsStocks.js              # US equity list → master.us_stocks
+│       └── ingestOhlcHistory.js           # Historical OHLC backfill
 ├── frontend/src/
 │   ├── App.jsx
-│   ├── hooks/useWebSocket.js
+│   ├── hooks/
+│   │   ├── useWebSocket.js
+│   │   └── useTheme.jsx           # Light/dark theme toggle
 │   └── components/
 │       ├── Dashboard.jsx
 │       ├── PipelineStatus.jsx
 │       ├── LogStream.jsx
 │       ├── TableViewer.jsx
 │       ├── Settings.jsx
-│       └── ui/                # Radix UI wrappers
-└── .env                       # Credentials (not committed)
+│       ├── StockExplorer.jsx      # Searchable/paginated stock browser
+│       ├── StockDetail.jsx        # Per-symbol fundamentals detail view
+│       └── ui/                    # Radix UI wrappers
+└── .env                           # Credentials (not committed)
 ```
 
 ---
@@ -160,7 +168,7 @@ postgresdb/
 | GET/POST | `/api/settings` | Load / update settings |
 | WS | `/ws/logs` | Real-time log stream |
 
-Available job names: `fundamentals`, `ohlc`, `ohlc_premarket`, `safe_bet`, `us_stocks`
+Available job names: `fundamentals`, `polygon_fundamentals`, `ohlc`, `ohlc_premarket`, `safe_bet`, `us_stocks`
 
 ---
 
@@ -177,6 +185,8 @@ Target: `master` schema in the `stocks` database (TimescaleDB).
 | `master.safe_bet` | Safe-bet symbol snapshots |
 | `master.ingest_watermark` | Last successful run timestamp per job |
 
+Polygon fundamentals enrichment writes into `master.stock_fundamentals_latest`, extending existing rows with ticker details, annual financials, and dividend data sourced from Polygon.io.
+
 ---
 
 ## Scheduler Windows (ET)
@@ -187,3 +197,4 @@ Target: `master` schema in the `stocks` database (TimescaleDB).
 | Regular OHLC | 09:30 – 16:00 |
 | Fundamentals | 09:30 – 16:00 |
 | Safe Bet | 09:30 – 16:00 |
+| Polygon Fundamentals | Configurable (runs within budget per execution) |
