@@ -231,6 +231,64 @@ flowchart TD
 - POST `/api/start` / `/api/stop` start or stop all cron tasks without restarting the server
 - POST `/api/settings` saves new intervals and calls `scheduler.restart()` to apply them immediately
 
+### Data Ingestion Sequence
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Express
+    participant Scheduler
+    participant AlpacaAPI
+    participant PolygonAPI
+    participant TimescaleDB
+
+    Note over Scheduler: node-cron tick fires
+
+    Scheduler->>Scheduler: inWindow() check (ET)
+    alt outside window
+        Scheduler-->>Scheduler: skip
+    else inside window
+        Scheduler->>AlpacaAPI: GET /v2/stocks/snapshots (batch 1000)
+        AlpacaAPI-->>Scheduler: OHLC snapshots
+        Scheduler->>TimescaleDB: UPSERT master.ohlc / ohlc_premarket
+        TimescaleDB-->>Scheduler: ok
+        Scheduler->>Scheduler: log.push(info)
+    end
+
+    Note over Scheduler: daily 02:00 ET — Polygon fundamentals
+
+    Scheduler->>TimescaleDB: getStalestSymbols(budget)
+    TimescaleDB-->>Scheduler: symbol list
+    loop each symbol
+        Scheduler->>PolygonAPI: GET /v3/reference/tickers/:symbol
+        Scheduler->>PolygonAPI: GET /vX/reference/financials
+        Scheduler->>PolygonAPI: GET /v3/reference/dividends
+        PolygonAPI-->>Scheduler: ticker details + financials + dividends
+        Scheduler->>TimescaleDB: UPSERT master.stock_fundamentals_latest
+    end
+
+    Note over Browser: user opens dashboard
+
+    Browser->>Express: GET /api/dashboard
+    Express->>TimescaleDB: aggregate queries
+    TimescaleDB-->>Express: metrics + leaders
+    Express-->>Browser: JSON response
+
+    Browser->>Express: WS /ws/logs (upgrade)
+    Scheduler->>Express: log.push(event)
+    Express-->>Browser: broadcast log entry
+
+    Note over Browser: user triggers manual job
+
+    Browser->>Express: POST /api/jobs/run/ohlc
+    Express->>Scheduler: runJob('ohlc')
+    Scheduler->>AlpacaAPI: GET /v2/stocks/snapshots
+    AlpacaAPI-->>Scheduler: snapshots
+    Scheduler->>TimescaleDB: UPSERT master.ohlc
+    Scheduler-->>Express: done
+    Express-->>Browser: 200 ok
+```
+
 ### Scheduler Windows (ET)
 
 | Job | Window |
