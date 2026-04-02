@@ -141,6 +141,25 @@ async function upsertFundamentals(rows) {
   return rows.length;
 }
 
+// ── Watermark ─────────────────────────────────────────────────────────────────
+
+async function getWatermark(job) {
+  const res = await query(
+    'SELECT last_timestamp FROM master.ingest_watermark WHERE job = $1',
+    [job]
+  );
+  return res.rows[0]?.last_timestamp ?? null;
+}
+
+async function setWatermark(job, timestamp) {
+  await query(
+    `INSERT INTO master.ingest_watermark (job, last_timestamp, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (job) DO UPDATE SET last_timestamp = EXCLUDED.last_timestamp, updated_at = NOW()`,
+    [job, timestamp]
+  );
+}
+
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 async function getTableCounts() {
@@ -176,4 +195,6 @@ module.exports = {
   upsertSafeBet,
   upsertFundamentals,
   getTableCounts,
+  getWatermark,
+  setWatermark,
 };

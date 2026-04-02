@@ -103,8 +103,66 @@ function snapshotToFundamentalsRow(symbol, snap) {
   };
 }
 
+/**
+ * Fetch historical minute bars for a list of symbols from `start` to `end`.
+ * Handles pagination via next_page_token.
+ * Returns array of OHLCV rows ready for insertOhlc().
+ */
+async function getHistoricalBars(symbols, start, end, onProgress) {
+  const batches = chunk(symbols, config.batchSize);
+  const rows = [];
+
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    let pageToken = null;
+
+    do {
+      try {
+        const params = {
+          symbols: batch.join(','),
+          timeframe: '1Min',
+          start: start.toISOString(),
+          end: end.toISOString(),
+          feed: 'iex',
+          limit: 10000,
+        };
+        if (pageToken) params.page_token = pageToken;
+
+        const res = await client.get('/stocks/bars', { params });
+        const bars = res.data.bars ?? {};
+        pageToken = res.data.next_page_token ?? null;
+
+        for (const [symbol, barList] of Object.entries(bars)) {
+          for (const bar of barList) {
+            rows.push({
+              symbol,
+              timestamp: new Date(bar.t),
+              open: num(bar.o),
+              high: num(bar.h),
+              low: num(bar.l),
+              close: num(bar.c),
+              volume: num(bar.v),
+            });
+          }
+        }
+      } catch (err) {
+        if (err.response?.status === 429) {
+          await sleep(1000);
+        } else {
+          console.error('Alpaca historical bars error:', err.message);
+          pageToken = null;
+        }
+      }
+    } while (pageToken);
+
+    if (onProgress) onProgress(i + 1, batches.length);
+  }
+
+  return rows;
+}
+
 function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
 }
 
-module.exports = { getSnapshots, snapshotToOhlcRow, snapshotToFundamentalsRow };
+module.exports = { getSnapshots, getHistoricalBars, snapshotToOhlcRow, snapshotToFundamentalsRow };

@@ -1,0 +1,205 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["master"]
+}
+
+model ingest_watermark {
+  job            String   @id
+  last_timestamp DateTime @db.Timestamptz(6)
+  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("master")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model ohlc {
+  symbol    String
+  timestamp DateTime @db.Timestamptz(6)
+  open      Float?
+  high      Float?
+  low       Float?
+  close     Float?
+  volume    Float?
+
+  @@index([timestamp(sort: Desc)])
+  @@ignore
+  @@schema("master")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model ohlc_premarket {
+  symbol    String
+  timestamp DateTime @db.Timestamptz(6)
+  open      Float?
+  high      Float?
+  low       Float?
+  close     Float?
+  volume    Float?
+
+  @@index([timestamp(sort: Desc)])
+  @@ignore
+  @@schema("master")
+}
+
+model safe_bet {
+  symbol                     String
+  name                       String?
+  previous_close             Decimal? @db.Decimal
+  open_price                 Decimal? @db.Decimal
+  current_price              Decimal? @db.Decimal
+  pct_change_from_prev_close Decimal? @db.Decimal
+  pct_change_from_open       Decimal? @db.Decimal
+  query_type                 String   @default("live")
+  captured_at                DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([symbol, query_type])
+  @@schema("master")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model stock_fundamentals_latest {
+  id                                     BigInt?
+  symbol                                 String?   @unique(map: "latest_stock_fundamentals_symbol_ts_idx")
+  timestamp                              DateTime? @db.Timestamptz(6)
+  current_price                          Float?
+  previous_close                         Float?
+  open                                   Float?
+  day_low                                Float?
+  day_high                               Float?
+  regular_market_price                   Float?
+  regular_market_open                    Float?
+  regular_market_day_low                 Float?
+  regular_market_day_high                Float?
+  post_market_price                      Float?
+  post_market_change                     Float?
+  post_market_change_percent             Float?
+  fifty_two_week_low                     Float?
+  fifty_two_week_high                    Float?
+  fifty_two_week_range                   String?
+  all_time_low                           Float?
+  all_time_high                          Float?
+  fifty_day_average                      Float?
+  two_hundred_day_average                Float?
+  fifty_day_average_change               Float?
+  fifty_day_average_change_percent       Float?
+  two_hundred_day_average_change         Float?
+  two_hundred_day_average_change_percent Float?
+  volume                                 Float?
+  regular_market_volume                  Float?
+  average_volume                         Float?
+  average_volume_10days                  Float?
+  average_daily_volume_10day             Float?
+  bid                                    Float?
+  ask                                    Float?
+  bid_size                               Float?
+  ask_size                               Float?
+  shares_outstanding                     Float?
+  float_shares                           Float?
+  short_ratio                            Float?
+  short_percent_of_float                 Float?
+  implied_shares_outstanding             Float?
+  market_cap                             Float?
+  enterprise_value                       Float?
+  trailing_pe                            Float?
+  forward_pe                             Float?
+  peg_ratio                              Float?
+  price_to_book                          Float?
+  price_to_sales                         Float?
+  book_value                             Float?
+  totalrevenue                           Float?
+  netincometocommon                      Float?
+  revenue_per_share                      Float?
+  revenue_growth                         Float?
+  earnings_growth                        Float?
+  total_cash                             Float?
+  total_cash_per_share                   Float?
+  total_debt                             Float?
+  ebitda                                 Float?
+  free_cashflow                          Float?
+  operating_cashflow                     Float?
+  profit_margins                         Float?
+  gross_margins                          Float?
+  ebitda_margins                         Float?
+  operating_margins                      Float?
+  return_on_assets                       Float?
+  return_on_equity                       Float?
+  current_ratio                          Float?
+  quick_ratio                            Float?
+  debt_to_equity                         Float?
+  eps                                    Float?
+  trailing_eps                           Float?
+  forward_eps                            Float?
+  eps_current_year                       Float?
+  eps_forward                            Float?
+  earnings_quarterly_growth              Float?
+  dividend_rate                          Float?
+  dividend_yield                         Float?
+  trailing_annual_dividend_rate          Float?
+  trailing_annual_dividend_yield         Float?
+  last_dividend_value                    Float?
+  last_dividend_date                     DateTime? @db.Timestamptz(6)
+  ex_dividend_date                       DateTime? @db.Timestamptz(6)
+  payout_ratio                           Float?
+  five_year_avg_dividend_yield           Float?
+  dividend_date                          DateTime? @db.Timestamptz(6)
+  target_high_price                      Float?
+  target_low_price                       Float?
+  target_mean_price                      Float?
+  target_median_price                    Float?
+  recommendation_mean                    Float?
+  recommendation_key                     String?
+  number_of_analyst_opinions             Int?
+  average_analyst_rating                 String?
+  audit_risk                             Int?
+  board_risk                             Int?
+  compensation_risk                      Int?
+  shareholder_rights_risk                Int?
+  overall_risk                           Int?
+  governance_epoch                       DateTime? @db.Timestamptz(6)
+  compensation_as_of_epoch               DateTime? @db.Timestamptz(6)
+  beta                                   Float?
+  currency                               String?
+  tradeable                              Boolean?
+  quote_type                             String?
+  quote_source_name                      String?
+  market                                 String?
+  market_state                           String?
+  triggerable                            Boolean?
+  custom_price_alert_confidence          String?
+  exchange                               String?
+  exchange_timezone_name                 String?
+  exchange_timezone_short_name           String?
+  gmt_offset_ms                          Int?
+  first_trade_date_ms                    BigInt?
+  has_pre_post_market_data               Boolean?
+  long_business_summary                  String?
+  website                                String?
+  full_time_employees                    Int?
+  short_name                             String?
+  industry                               String?
+  sector                                 String?
+  long_name                              String?
+
+  @@ignore
+  @@schema("master")
+}
+
+model us_stocks {
+  symbol                   String    @id
+  description              String?
+  currency                 String?
+  mic                      String?
+  type                     String?
+  is_active                Boolean?  @default(true)
+  listed_at                DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime? @default(now()) @db.Timestamptz(6)
+  last_fundamentals_update DateTime? @db.Timestamptz(6)
+
+  @@schema("master")
+}

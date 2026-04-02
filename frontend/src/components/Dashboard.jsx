@@ -8,7 +8,7 @@ import {
 import { API_BASE } from '../api';
 import {
   Database, TrendingUp, Activity, Clock, BarChart2,
-  RefreshCw, Layers, Cpu, ShieldCheck, Trophy,
+  RefreshCw, Layers, Cpu, ShieldCheck, Trophy, History,
 } from 'lucide-react';
 import { Button } from './ui/button';
 
@@ -70,6 +70,10 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [histFrom, setHistFrom] = useState('');
+  const [histTo, setHistTo] = useState('');
+  const [histLoading, setHistLoading] = useState(false);
+  const [histMsg, setHistMsg] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,6 +91,28 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [load]);
 
+  async function fetchHistory() {
+    setHistLoading(true);
+    setHistMsg(null);
+    try {
+      const body = {};
+      if (histFrom) body.from = histFrom;
+      if (histTo) body.to = histTo;
+      const res = await fetch(`${API_BASE}/api/jobs/run/ohlc_history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      setHistMsg(json.message || 'Triggered');
+      setTimeout(load, 3000);
+    } catch {
+      setHistMsg('Failed to trigger');
+    } finally {
+      setHistLoading(false);
+    }
+  }
+
   if (!data) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground text-sm gap-2">
@@ -95,7 +121,7 @@ export default function Dashboard() {
     );
   }
 
-  const { counts, ohlcRecent, topSymbols, fundamentalsCoverage, ohlcByHour, schedulerStatus, marketLeaders } = data;
+  const { counts, ohlcRecent, topSymbols, fundamentalsCoverage, ohlcByHour, schedulerStatus, marketLeaders, ohlcHistoryWatermark } = data;
   const jobs = schedulerStatus?.jobs || {};
 
   // Format ohlcByHour for chart
@@ -274,6 +300,53 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* ── History Fetch ── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <History className="w-4 h-4 text-primary" /> Fetch OHLC History from Alpaca
+            {ohlcHistoryWatermark && (
+              <span className="ml-auto text-[10px] text-muted-foreground font-normal">
+                Last fetched up to: {new Date(ohlcHistoryWatermark).toLocaleString()}
+              </span>
+            )}
+            {!ohlcHistoryWatermark && (
+              <span className="ml-auto text-[10px] text-muted-foreground font-normal">No history fetched yet</span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-muted-foreground">From</label>
+              <input
+                type="date"
+                value={histFrom}
+                onChange={(e) => setHistFrom(e.target.value)}
+                className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-muted-foreground">To</label>
+              <input
+                type="date"
+                value={histTo}
+                onChange={(e) => setHistTo(e.target.value)}
+                className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <Button size="sm" onClick={fetchHistory} disabled={histLoading} className="h-8">
+              {histLoading ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <History className="w-3 h-3 mr-1" />}
+              {histLoading ? 'Triggering…' : 'Fetch History'}
+            </Button>
+            {histMsg && <span className="text-[11px] text-emerald-400">{histMsg}</span>}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Leave dates empty to resume from the last watermark (or default to last 7 days).
+          </p>
         </CardContent>
       </Card>
 

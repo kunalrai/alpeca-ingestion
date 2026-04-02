@@ -9,6 +9,7 @@ const JOB_LABELS = {
   ohlc_premarket: 'Pre-Market',
   safe_bet: 'Safe Bet',
   fundamentals: 'Fundamentals',
+  us_stocks: 'US Stocks',
 };
 
 async function triggerJob(name) {
@@ -56,13 +57,13 @@ export default function PipelineStatus({ status, onStart, onStop }) {
                   <span className="text-xs text-foreground">{label}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {key === 'fundamentals' && (
+                  {(key === 'fundamentals' || key === 'us_stocks') && (
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-5 w-5 p-0"
-                      title="Refresh fundamentals now"
-                      onClick={() => triggerJob('fundamentals')}
+                      title={`Refresh ${JOB_LABELS[key]} now`}
+                      onClick={() => triggerJob(key)}
                       disabled={job.running}
                     >
                       <RefreshCw className={`w-3 h-3 ${job.running ? 'animate-spin' : ''}`} />

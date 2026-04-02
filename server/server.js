@@ -43,14 +43,17 @@ app.post('/api/settings', (req, res) => {
 
 app.post('/api/jobs/run/:name', async (req, res) => {
   const jobs = {
-    fundamentals: require('./jobs/ingestFundamentals'),
-    ohlc:         require('./jobs/ingestOhlc'),
+    fundamentals:  require('./jobs/ingestFundamentals'),
+    ohlc:          require('./jobs/ingestOhlc'),
     ohlc_premarket: require('./jobs/ingestOhlcPremarket'),
-    safe_bet:     require('./jobs/ingestSafeBet'),
+    safe_bet:      require('./jobs/ingestSafeBet'),
+    ohlc_history:  require('./jobs/ingestOhlcHistory'),
+    us_stocks:     require('./jobs/ingestUsStocks'),
   };
   const job = jobs[req.params.name];
   if (!job) return res.status(400).json({ error: 'Unknown job' });
-  job.run().catch(() => {});
+  const { from, to } = req.body ?? {};
+  job.run({ from, to }).catch(() => {});
   res.json({ ok: true, message: `${req.params.name} triggered` });
 });
 
@@ -71,7 +74,7 @@ app.get('/api/logs', (req, res) => {
 // ── Dashboard stats ───────────────────────────────────────────────────────────
 app.get('/api/dashboard', async (req, res) => {
   try {
-    const [counts, ohlcRecent, topSymbols, lastFundamentals, ohlcByHour, marketLeaders] = await Promise.all([
+    const [counts, ohlcRecent, topSymbols, lastFundamentals, ohlcByHour, marketLeaders, watermark] = await Promise.all([
       db.getTableCounts(),
 
       // Last 10 OHLC inserts
@@ -133,6 +136,8 @@ app.get('/api/dashboard', async (req, res) => {
         ORDER BY l.volume DESC NULLS LAST
         LIMIT 25
       `),
+
+      db.getWatermark('ohlc_history'),
     ]);
 
     res.json({
@@ -143,6 +148,7 @@ app.get('/api/dashboard', async (req, res) => {
       ohlcByHour: ohlcByHour.rows,
       marketLeaders: marketLeaders.rows,
       schedulerStatus: scheduler.getStatus(),
+      ohlcHistoryWatermark: watermark,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
